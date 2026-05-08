@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BotWatch — Fake Account Detector</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f5f5f5;
+        color: #222;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 480px;
+      }
+
+      h1 {
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+
+      .subtitle {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 32px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 28px;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #444;
+        margin-bottom: 8px;
+      }
+
+      .input-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        border: 1px solid #ccc;
+        border-radius: 7px;
+        padding: 10px 14px;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+
+      input[type="text"]:focus {
+        border-color: #3b82f6;
+      }
+
+      button[type="submit"] {
+        background: #3b82f6;
+        color: #fff;
+        border: none;
+        border-radius: 7px;
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      button[type="submit"]:hover {
+        background: #2563eb;
+      }
+
+      .hint {
+        font-size: 12px;
+        color: #888;
+        margin-top: 6px;
+      }
+
+      .error {
+        background: #fef2f2;
+        border: 1px solid #fca5a5;
+        color: #b91c1c;
+        border-radius: 7px;
+        padding: 10px 14px;
+        font-size: 13px;
+        margin-bottom: 16px;
+      }
+
+      .divider {
+        border: none;
+        border-top: 1px solid #eee;
+        margin: 24px 0;
+      }
+
+      .not-found-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #444;
+        margin-bottom: 4px;
+      }
+
+      .not-found-desc {
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 20px;
+        line-height: 1.5;
+      }
+
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      input[type="number"] {
+        border: 1px solid #ccc;
+        border-radius: 7px;
+        padding: 9px 12px;
+        font-size: 13px;
+        outline: none;
+        transition: border-color 0.15s;
+        -moz-appearance: textfield;
+      }
+
+      input[type="number"]:focus {
+        border-color: #3b82f6;
+      }
+
+      .checks {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 16px;
+      }
+
+      .check-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: #444;
+        cursor: pointer;
+      }
+
+      .submit-manual {
+        width: 100%;
+        background: #f0f7ff;
+        color: #3b82f6;
+        border: 1px solid #bfdbfe;
+        border-radius: 7px;
+        padding: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .submit-manual:hover {
+        background: #dbeafe;
+      }
+
+      .stats {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        margin-top: 28px;
+        padding-top: 20px;
+        border-top: 1px solid #e5e5e5;
+      }
+
+      .stat {
+        text-align: center;
+      }
+      .stat-val {
+        display: block;
+        font-size: 18px;
+        font-weight: 700;
+        color: #3b82f6;
+      }
+      .stat-lbl {
+        font-size: 11px;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      @media (max-width: 400px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+        .checks {
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>BotWatch</h1>
+      <p class="subtitle">
+        Fake Twitter account detector — powered by machine learning
+      </p>
+
+      <div class="card">
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="/analyse">
+          <label for="screen_name">Twitter screen name</label>
+          <div class="input-row">
+            <input
+              type="text"
+              id="screen_name"
+              name="screen_name"
+              placeholder="@username"
+              value="{{ screen_name or '' }}"
+              autocomplete="off"
+              autofocus
+            />
+            <button type="submit">Analyse</button>
+          </div>
+          <p class="hint">
+            Searches 12,737 labelled accounts from the Cresci-2017 dataset
+          </p>
+
+          {% if not_found %}
+          <hr class="divider" />
+          <p class="not-found-title">@{{ not_found }} is not in the dataset</p>
+          <p class="not-found-desc">
+            Look up the account on Twitter/X and enter the stats below. Press
+            Enter or 0 for any fields you're unsure about.
+          </p>
+
+          <div class="grid2">
+            <div class="field">
+              <label>Followers count</label>
+              <input
+                type="number"
+                name="followers_count"
+                placeholder="0"
+                min="0"
+              />
+            </div>
+            <div class="field">
+              <label>Following count</label>
+              <input
+                type="number"
+                name="friends_count"
+                placeholder="0"
+                min="0"
+              />
+            </div>
+            <div class="field">
+              <label>Total tweets</label>
+              <input
+                type="number"
+                name="statuses_count"
+                placeholder="0"
+                min="0"
+              />
+            </div>
+            <div class="field">
+              <label>Total likes given</label>
+              <input
+                type="number"
+                name="favourites_count"
+                placeholder="0"
+                min="0"
+              />
+            </div>
+            <div class="field">
+              <label>Listed count</label>
+              <input
+                type="number"
+                name="listed_count"
+                placeholder="0"
+                min="0"
+              />
+            </div>
+            <div class="field">
+              <label>Account created (optional)</label>
+              <input type="text" name="created_at" placeholder="2020-01-15" />
+            </div>
+          </div>
+
+          <div class="checks">
+            <label class="check-item">
+              <input type="checkbox" name="has_description" /> Has bio
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="has_url" /> Has URL
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="has_location" /> Has location
+            </label>
+          </div>
+
+          <button type="submit" class="submit-manual">
+            Run prediction with manual data
+          </button>
+          {% endif %}
+        </form>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-val">99%</span>
+          <span class="stat-lbl">F1 score</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val">0.997</span>
+          <span class="stat-lbl">AUC-ROC</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val">12,737</span>
+          <span class="stat-lbl">Accounts</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val">13</span>
+          <span class="stat-lbl">Features</span>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

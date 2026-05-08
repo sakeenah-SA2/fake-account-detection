@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@{{ result.screen_name }} — BotWatch</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f5f5f5;
+        color: #222;
+        min-height: 100vh;
+        padding: 40px 20px;
+      }
+
+      .page {
+        max-width: 480px;
+        margin: 0 auto;
+      }
+
+      /* Nav */
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px;
+      }
+
+      .brand {
+        font-size: 18px;
+        font-weight: 700;
+        color: #222;
+        text-decoration: none;
+      }
+
+      .back {
+        font-size: 13px;
+        color: #3b82f6;
+        text-decoration: none;
+      }
+
+      .back:hover {
+        text-decoration: underline;
+      }
+
+      /* Verdict card */
+      .verdict-card {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 24px;
+        margin-bottom: 12px;
+      }
+
+      .verdict-card.fake {
+        border-left: 4px solid #ef4444;
+      }
+      .verdict-card.real {
+        border-left: 4px solid #22c55e;
+      }
+
+      .account-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 16px;
+        color: #6b7280;
+        flex-shrink: 0;
+      }
+
+      .account-name {
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .account-handle {
+        font-size: 13px;
+        color: #666;
+        margin-top: 2px;
+      }
+
+      .verdict-pill {
+        margin-left: auto;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 4px 14px;
+        border-radius: 100px;
+      }
+
+      .verdict-pill.fake {
+        background: #fef2f2;
+        color: #ef4444;
+        border: 1px solid #fca5a5;
+      }
+      .verdict-pill.real {
+        background: #f0fdf4;
+        color: #22c55e;
+        border: 1px solid #86efac;
+      }
+
+      .score-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .score-num {
+        font-size: 44px;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .score-num.fake {
+        color: #ef4444;
+      }
+      .score-num.real {
+        color: #22c55e;
+      }
+
+      .score-meta {
+        padding-bottom: 4px;
+      }
+      .score-label {
+        font-size: 12px;
+        color: #888;
+      }
+      .score-conf {
+        font-size: 13px;
+        font-weight: 600;
+        color: #444;
+        margin-top: 2px;
+      }
+
+      .bar-wrap {
+        background: #e5e7eb;
+        border-radius: 100px;
+        height: 7px;
+        overflow: hidden;
+        margin-bottom: 5px;
+      }
+
+      .bar-fill {
+        height: 100%;
+        border-radius: 100px;
+      }
+
+      .bar-fill.fake {
+        background: #ef4444;
+      }
+      .bar-fill.real {
+        background: #22c55e;
+      }
+
+      .bar-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: #aaa;
+      }
+
+      .truth-row {
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid #f0f0f0;
+        font-size: 13px;
+        color: #666;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .truth-badge {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 2px 10px;
+        border-radius: 100px;
+      }
+
+      .badge-correct {
+        background: #f0fdf4;
+        color: #16a34a;
+        border: 1px solid #86efac;
+      }
+      .badge-wrong {
+        background: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fca5a5;
+      }
+      .badge-unknown {
+        background: #f9fafb;
+        color: #6b7280;
+        border: 1px solid #d1d5db;
+      }
+
+      /* Signals card */
+      .card {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 24px;
+        margin-bottom: 12px;
+      }
+
+      .card-title {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #888;
+        margin-bottom: 14px;
+      }
+
+      .signal-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+        gap: 10px;
+        font-size: 13px;
+      }
+
+      .signal-row:last-child {
+        border-bottom: none;
+      }
+
+      .signal-name {
+        color: #666;
+        flex: 1;
+      }
+      .signal-val {
+        font-weight: 600;
+        color: #222;
+      }
+
+      .flag {
+        font-size: 11px;
+        padding: 2px 9px;
+        border-radius: 100px;
+        font-weight: 500;
+      }
+
+      .flag-sus {
+        background: #fef2f2;
+        color: #ef4444;
+        border: 1px solid #fca5a5;
+      }
+      .flag-ok {
+        background: #f0fdf4;
+        color: #16a34a;
+        border: 1px solid #86efac;
+      }
+
+      /* Actions */
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 4px;
+      }
+
+      .btn {
+        flex: 1;
+        padding: 11px;
+        border-radius: 7px;
+        font-size: 14px;
+        font-weight: 600;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+        border: none;
+        display: block;
+      }
+
+      .btn-primary {
+        background: #3b82f6;
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #2563eb;
+      }
+
+      .btn-secondary {
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #e5e7eb;
+      }
+      .btn-secondary:hover {
+        background: #e5e7eb;
+      }
+
+      .footer-note {
+        font-size: 11px;
+        color: #aaa;
+        text-align: center;
+        margin-top: 20px;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <nav class="nav">
+        <a href="/" class="brand">BotWatch</a>
+        <a href="/" class="back">← New search</a>
+      </nav>
+
+      <!-- Verdict -->
+      {% set cls = 'fake' if result.verdict == 'FAKE' else 'real' %}
+      <div class="verdict-card {{ cls }}">
+        <div class="account-row">
+          <div class="avatar">{{ result.screen_name[0].upper() }}</div>
+          <div>
+            <div class="account-name">
+              {{ result.name or result.screen_name }}
+            </div>
+            <div class="account-handle">@{{ result.screen_name }}</div>
+          </div>
+          <span class="verdict-pill {{ cls }}">{{ result.verdict }}</span>
+        </div>
+
+        <div class="score-row">
+          <div class="score-num {{ cls }}">
+            {{ (result.bot_probability * 100) | int }}%
+          </div>
+          <div class="score-meta">
+            <div class="score-label">bot probability</div>
+            <div class="score-conf">{{ result.confidence }} confidence</div>
+          </div>
+        </div>
+
+        <div class="bar-wrap">
+          <div
+            class="bar-fill {{ cls }}"
+            style="width: {{ (result.bot_probability * 100) | int }}%"
+          ></div>
+        </div>
+        <div class="bar-labels"><span>Real</span><span>Fake</span></div>
+
+        <div class="truth-row">
+          Actual: {% if result.true_label == 1 %}
+          <span
+            class="truth-badge {{ 'badge-correct' if result.verdict == 'FAKE' else 'badge-wrong' }}"
+          >
+            FAKE — {{ 'Correct ✓' if result.verdict == 'FAKE' else 'Wrong ✗' }}
+          </span>
+          {% elif result.true_label == 0 %}
+          <span
+            class="truth-badge {{ 'badge-correct' if result.verdict == 'REAL' else 'badge-wrong' }}"
+          >
+            REAL — {{ 'Correct ✓' if result.verdict == 'REAL' else 'Wrong ✗' }}
+          </span>
+          {% else %}
+          <span class="truth-badge badge-unknown"
+            >Unknown (not in dataset)</span
+          >
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Key signals -->
+      <div class="card">
+        <div class="card-title">Key signals</div>
+        {% for label, value in result.top_signals %}
+        <div class="signal-row">
+          <span class="signal-name">{{ label }}</span>
+          <span class="signal-val">{{ value }}</span>
+          {% if label == "Favourites (likes) given" %}
+          <span class="flag {{ 'flag-sus' if value|int < 100 else 'flag-ok' }}">
+            {{ 'Suspicious' if value|int < 100 else 'Normal' }}
+          </span>
+          {% elif label == "Tweets per day" %}
+          <span
+            class="flag {{ 'flag-sus' if value|float > 50 or value|float < 0.1 else 'flag-ok' }}"
+          >
+            {{ 'Suspicious' if value|float > 50 or value|float < 0.1 else
+            'Normal' }}
+          </span>
+          {% elif label == "Follower / following ratio" %}
+          <span
+            class="flag {{ 'flag-sus' if value|float < 0.1 else 'flag-ok' }}"
+          >
+            {{ 'Suspicious' if value|float < 0.1 else 'Normal' }}
+          </span>
+          {% elif label in ["Has bio", "Has location", "Has website URL"] %}
+          <span class="flag {{ 'flag-ok' if value == 'Yes' else 'flag-sus' }}">
+            {{ 'Normal' if value == 'Yes' else 'Suspicious' }}
+          </span>
+          {% else %}
+          <span class="flag flag-ok">—</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Model info -->
+      <div class="card">
+        <div class="card-title">Model info</div>
+        <div class="signal-row">
+          <span class="signal-name">Algorithm</span>
+          <span class="signal-val">Random Forest (100 trees)</span>
+        </div>
+        <div class="signal-row">
+          <span class="signal-name">Features evaluated</span>
+          <span class="signal-val">13</span>
+        </div>
+        <div class="signal-row">
+          <span class="signal-name">Training dataset</span>
+          <span class="signal-val">Cresci-2017</span>
+        </div>
+        <div class="signal-row">
+          <span class="signal-name">Input source</span>
+          <span class="signal-val"
+            >{{ 'Dataset record' if result.input_source == 'dataset' else
+            'Manual entry' }}</span
+          >
+        </div>
+        <div class="signal-row">
+          <span class="signal-name">Model F1 score</span>
+          <span class="signal-val">0.99</span>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions">
+        <a href="/" class="btn btn-primary">Analyse another</a>
+        <a href="/" class="btn btn-secondary">Home</a>
+      </div>
+
+      <p class="footer-note">
+        For academic research purposes only.<br />
+        Trained on Cresci-2017 dataset.
+      </p>
+    </div>
+  </body>
+</html>

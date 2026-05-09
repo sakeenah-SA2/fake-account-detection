@@ -21,32 +21,17 @@ app = Flask(__name__)
 
 DATA_PATH = os.path.join(PROJECT_ROOT, "data")
 
-def load_all_accounts():
-    groups = {
-        "genuine_accounts":       0,
-        "social_spambots_1":      1,
-        "social_spambots_2":      1,
-        "social_spambots_3":      1,
-        "traditional_spambots_1": 1,
-        "fake_followers":         1,
-    }
-    frames = []
-    for folder, label in groups.items():
-        path = os.path.join(DATA_PATH, folder, "users.csv")
-        if os.path.exists(path):
-            df = pd.read_csv(path)
-            df["true_label"] = label
-            frames.append(df)
-    if not frames:
+def load_all_accounts() -> pd.DataFrame:
+    """Load accounts from the pre-built lookup CSV."""
+    lookup_path = os.path.join(BASE_DIR, "data", "accounts_lookup.csv")
+    if not os.path.exists(lookup_path):
+        print("WARNING: accounts_lookup.csv not found — dataset lookup disabled.")
         return pd.DataFrame()
-    combined = pd.concat(frames, ignore_index=True)
-    combined["screen_name_lower"] = combined["screen_name"].str.lower().fillna("")
-    return combined
-
-print("Loading dataset...")
-accounts_df = load_all_accounts()
-print(f"{len(accounts_df):,} accounts loaded.")
-
+    df = pd.read_csv(lookup_path)
+    df["screen_name_lower"] = df["screen_name"].str.lower().fillna("")
+    print(f"Loaded {len(df):,} accounts from accounts_lookup.csv")
+    return df
+   
 
 # ── Routes ─────────────────────────────────────────────────────────────────
 

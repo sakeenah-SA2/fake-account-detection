@@ -83,9 +83,24 @@ def analyse():
         result["input_source"] = "manual"
         return render_template("result.html", result=result)
 
-    return render_template("index.html",
-                           not_found=screen_name,
-                           screen_name=screen_name)
+    return render_template("index.html", not_found=screen_name, screen_name=screen_name)
+
+@app.route("/predict-json", methods=["POST"])
+def predict_json():
+    """JSON endpoint used by the Chrome extension."""
+    from flask import jsonify
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data received"}), 400
+    try:
+        result = predict(data)
+        result["true_label"]   = -1
+        result["input_source"] = "extension"
+        # Convert top_signals tuples to lists for JSON serialisation
+        result["top_signals"] = [list(s) for s in result["top_signals"]]
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

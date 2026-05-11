@@ -1,5 +1,7 @@
 // content.js — runs on twitter.com / x.com
-// Scrapes profile data and triggers auto-prediction on every profile visit
+// Auto-scrapes, estimates missing values, and triggers prediction on every profile visit
+
+// ── Helpers ───────────────────────────────────────────────────────────────
 
 function parseCount(text) {
   if (!text) return 0;
@@ -17,13 +19,15 @@ function isCountText(text) {
 function isProfilePage() {
   const excluded = ["home", "explore", "notifications", "messages", "i", "settings", "search"];
   const parts    = window.location.pathname.split("/").filter(Boolean);
-  return parts.length >= 1 && !excluded.includes(parts[0]) && parts.length <= 2;
+  return parts.length >= 1 && parts.length <= 2 && !excluded.includes(parts[0]);
 }
+
+// ── Scrape visible profile data ───────────────────────────────────────────
 
 function scrapeProfile() {
   const data = {};
 
-  // Screen name
+  // Screen name from URL
   const parts = window.location.pathname.split("/").filter(Boolean);
   if (parts.length > 0) data.screen_name = parts[0];
 
@@ -39,7 +43,7 @@ function scrapeProfile() {
   const locEl = document.querySelector('[data-testid="UserLocation"]');
   data.has_location = !!(locEl && locEl.innerText.trim().length > 0);
 
-  // URL
+  // Website URL
   const urlEl = document.querySelector('[data-testid="UserUrl"]');
   data.has_url = !!urlEl;
 
@@ -51,10 +55,12 @@ function scrapeProfile() {
       const d = new Date(joinText);
       if (!isNaN(d)) data.join_date = d.toISOString().split("T")[0];
       else data.join_date = joinText;
-    } catch (e) { data.join_date = joinText; }
+    } catch (e) {
+      data.join_date = joinText;
+    }
   }
 
-  // Followers / following
+  // Followers / following — only accept pure count spans
   const allLinks = document.querySelectorAll('a[href]');
   allLinks.forEach(link => {
     const href        = link.getAttribute('href') || '';
@@ -76,7 +82,7 @@ function scrapeProfile() {
     }
   });
 
-  // Tweet count
+  // Tweet / post count
   const postSelectors = [
     '[data-testid="primaryColumn"] h2 + div span',
     '[data-testid="primaryColumn"] h2 ~ div span',
@@ -94,78 +100,104 @@ function scrapeProfile() {
   return data;
 }
 
-// ── Auto-predict on page visit ─────────────────────────────────────────────
-
-let lastPath = "";
-let autoTimer = null;
-
-function tryAutoPredict() {
-  if (!isProfilePage()) return;
-  const currentPath = window.location.pathname;
-  if (currentPath === lastPath) return;
-  lastPath = currentPath;
-
-  // Small delay to let Twitter finish rendering the profile DOM
-  clearTimeout(autoTimer);
-  autoTimer = setTimeout(() => {
-    const data = scrapeProfile();
-    if (data.screen_name) {
-      // Add estimated values for missing fields (same logic as popup suggest)
-      data = addEstimates(data);
-      chrome.runtime.sendMessage({ action: "auto_predict", data });
-    }
-  }, 1800);
-}
+// ── Estimate missing fields from scraped signals ──────────────────────────
+// Based on dataset averages:
+// Real: tweet_freq=9.18/day, fav_per_tweet=0.678, listed_per_follower=0.015
+// Fake: tweet_freq=0.49/day, fav_per_tweet=0.010, listed_per_follower=0.011
 
 function addEstimates(data) {
-  let accountAgeDays = 1433;
-  if (data.join_date) {
-    const d = new Date(data.join_date);
-    if (!isNaN(d)) {
-      accountAgeDays = Math.max(1, Math.floor((new Date() - d) / 86400000));
+  // Work on a copy so we never mutate the original
+  const d = Object.assign({}, data);
+
+  // Account age in days
+  let accountAgeDays = 1433; // dataset median fallback
+  if (d.join_date) {
+    const created = new Date(d.join_date);
+    if (!isNaN(created)) {
+      accountAgeDays = Math.max(1, Math.floor((Date.now() - created.getTime()) / 86400000));
     }
   }
 
-  const followers = data.followers_count || 0;
-  const friends   = data.friends_count   || 0;
+  // Legitimacy score 0–5 from signals we can see
+  const followers = d.followers_count || 0;
+  const friends   = d.friends_count   || 0;
   const ratio     = friends > 0 ? followers / friends : 0;
 
   let score = 0;
-  if (ratio > 1)          score++;
-  if (ratio > 3)          score++;
-  if (data.has_description) score++;
-  if (data.has_url)         score++;
-  if (data.has_location)    score++;
+  if (ratio > 1)        score++;
+  if (ratio > 3)        score++;
+  if (d.has_description) score++;
+  if (d.has_url)         score++;
+  if (d.has_location)    score++;
 
+  // Blend between fake and real averages
   const blend = score / 5;
-
   function lerp(a, b, t) { return a + (b - a) * t; }
 
   const tweetFreq   = lerp(0.49,  9.18,  blend);
   const favPerTweet = lerp(0.010, 0.678, blend);
   const listedPerF  = lerp(0.011, 0.015, blend);
 
-  if (!data.statuses_count) {
-    data.statuses_count = Math.max(1, Math.round(tweetFreq * accountAgeDays));
-  }
-  if (!data.favourites_count) {
-    data.favourites_count = Math.max(0, Math.round((data.statuses_count || 1) * favPerTweet));
-  }
-  if (!data.listed_count) {
-    data.listed_count = Math.max(0, Math.round(followers * listedPerF));
+  // Only estimate what wasn't scraped
+  if (!d.statuses_count || d.statuses_count === 0) {
+    d.statuses_count = Math.max(1, Math.round(tweetFreq * accountAgeDays));
   }
 
-  return data;
+  if (!d.favourites_count || d.favourites_count === 0) {
+    d.favourites_count = Math.max(0, Math.round(d.statuses_count * favPerTweet));
+  }
+
+  if (!d.listed_count || d.listed_count === 0) {
+    d.listed_count = Math.max(0, Math.round(followers * listedPerF));
+  }
+
+  return d;
 }
 
-// Watch for Twitter's SPA URL changes using MutationObserver
+// ── Auto-predict on profile visit ─────────────────────────────────────────
+
+let lastPath  = "";
+let autoTimer = null;
+
+function tryAutoPredict() {
+  if (!isProfilePage()) return;
+
+  const currentPath = window.location.pathname;
+  if (currentPath === lastPath) return;
+  lastPath = currentPath;
+
+  // Wait for Twitter to finish rendering the profile DOM
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(() => {
+    const raw       = scrapeProfile();
+    const estimated = addEstimates(raw); // use let-equivalent via new object
+
+    if (estimated.screen_name) {
+      chrome.runtime.sendMessage({
+        action: "auto_predict",
+        data:   estimated
+      });
+    }
+  }, 1800);
+}
+
+// ── Watch for Twitter SPA navigation ──────────────────────────────────────
+// Twitter uses the History API so we need multiple detection strategies
+
+// 1. MutationObserver — catches DOM changes when Twitter renders new content
 const observer = new MutationObserver(() => tryAutoPredict());
 observer.observe(document.body, { childList: true, subtree: true });
 
-// Also try immediately on load
+// 2. URL polling — catches History API pushState/replaceState that MutationObserver misses
+setInterval(tryAutoPredict, 1000);
+
+// 3. popstate — catches browser back/forward navigation
+window.addEventListener("popstate", tryAutoPredict);
+
+// 4. Run immediately in case the page is already a profile on load
 tryAutoPredict();
 
-// ── Handle messages from popup ─────────────────────────────────────────────
+// ── Handle manual scrape request from popup ────────────────────────────────
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "scrape") {

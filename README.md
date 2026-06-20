@@ -5,11 +5,24 @@ Random Forest classifier trained on the Cresci-2017 dataset. The model achieves
 **99% F1 score** and **0.997 AUC-ROC** on held-out test data. Predictions are
 fully explainable via SHAP values.
 
+**🔗 Live demo: [botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)**
+
+The model is available through three interfaces: a **web app** (link above), a
+**Chrome extension** that flags accounts as you browse Twitter/X, and a
+**command line interface**.
+
+> **Note:** The live demo is hosted on Render's free tier, so the first request
+> after a period of inactivity may take ~30–60 seconds to wake the server.
+
 ---
 
 ## Table of contents
 
 - [Project overview](#project-overview)
+- [Live demo & interfaces](#live-demo--interfaces)
+- [Web app](#web-app)
+- [Browser extension](#browser-extension)
+- [JSON API](#json-api)
 - [Dataset](#dataset)
 - [Project structure](#project-structure)
 - [Setup — step by step](#setup--step-by-step)
@@ -35,7 +48,116 @@ machine learning pipeline that:
 3. Trains a Random Forest classifier to distinguish real from fake accounts
 4. Evaluates the model using precision, recall, F1, and AUC-ROC
 5. Explains individual predictions using SHAP values
-6. Exposes predictions via a command line interface
+6. Serves predictions through three interfaces — a Flask web app, a Chrome
+   browser extension, and a command line interface
+
+---
+
+## Live demo & interfaces
+
+The trained model can be used in three ways:
+
+| Interface         | Best for                                  | How to access                                                        |
+| ----------------- | ----------------------------------------- | -------------------------------------------------------------------- |
+| **Web app**       | Quick checks from any browser, no install | [botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)     |
+| **Chrome extension** | Live verdicts while browsing Twitter/X | Load `extension/` unpacked (see [Browser extension](#browser-extension)) |
+| **CLI**           | Scripting and dataset lookups             | `python cli.py` (see [Using the CLI](#using-the-cli))                |
+
+All three share the same prediction core in [`src/predict.py`](src/predict.py),
+so the verdict for a given account is identical regardless of how you reach it.
+
+---
+
+## Web app
+
+A Flask web app ([`app.py`](app.py)) that wraps the model in a simple browser
+interface. It is deployed live at
+**[botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)**.
+
+Enter a Twitter/X screen name and the app either:
+
+- **Looks it up** in the bundled `data/accounts_lookup.csv` and shows the
+  model's verdict alongside the dataset's ground-truth label, or
+- **Falls back to manual entry** — if the name is not in the dataset, you can
+  type in the account's follower count, tweet count, bio/URL/location flags and
+  creation date, and the app predicts from those.
+
+### Run it locally
+
+```bash
+pip install -r requirements.txt
+python app.py
+```
+
+Then open <http://127.0.0.1:5000>. The app reads the `PORT` environment
+variable when set (used by the Render deployment), defaulting to `5000`.
+
+---
+
+## Browser extension
+
+**BotWatch** ([`extension/`](extension/)) is a Manifest V3 Chrome extension
+that detects fake accounts automatically as you browse Twitter/X.
+
+- It runs a content script on `twitter.com` / `x.com` profile pages, scrapes
+  the visible stats (followers, following, posts, bio/URL/location, join date),
+  and estimates any values Twitter no longer shows.
+- It posts the data to the web app's [JSON API](#json-api) and **colours the
+  toolbar icon** — green for real, red for fake, while loading in between.
+- Click the icon to open a popup with the verdict, confidence, the top signals,
+  and to manually correct any scraped value and re-run the prediction.
+
+### Install (developer mode)
+
+1. Run the Flask app so the API is reachable (see [Web app](#web-app)).
+2. Open `chrome://extensions`, enable **Developer mode**.
+3. Click **Load unpacked** and select the `extension/` folder.
+4. Visit any Twitter/X profile — the icon updates automatically.
+
+> **Note:** The extension is currently hard-coded to call the local API at
+> `http://127.0.0.1:5000/predict-json` (see `FLASK_URL` in
+> [`extension/background.js`](extension/background.js) and
+> [`extension/popup.js`](extension/popup.js)). To use the hosted deployment
+> instead, change that constant to
+> `https://botwatch-6qpn.onrender.com/predict-json` and add the same origin to
+> `host_permissions` in [`extension/manifest.json`](extension/manifest.json).
+
+---
+
+## JSON API
+
+Both the web app and the extension share a single JSON endpoint exposed by
+`app.py`:
+
+**`POST /predict-json`** — body is a raw account object, response is the
+prediction.
+
+```bash
+curl -X POST https://botwatch-6qpn.onrender.com/predict-json \
+  -H "Content-Type: application/json" \
+  -d '{
+        "screen_name": "example",
+        "followers_count": 120,
+        "friends_count": 2100,
+        "statuses_count": 35000,
+        "favourites_count": 12,
+        "listed_count": 0,
+        "description": "",
+        "url": null,
+        "location": "",
+        "created_at": "2022-04-01"
+      }'
+```
+
+```json
+{
+  "screen_name": "example",
+  "verdict": "FAKE",
+  "bot_probability": 0.91,
+  "confidence": "High",
+  "top_signals": [["Favourites (likes) given", 12], ["Tweets per day", 24.4]]
+}
+```
 
 ---
 
@@ -99,11 +221,28 @@ fake-account-detector/
 │   ├── __init__.py                # Makes src/ a Python package — must exist
 │   └── predict.py                 # Feature engineering + prediction logic
 │
+├── templates/                     # Web app HTML
+│   ├── index.html                 # Screen-name input form
+│   └── result.html                # Verdict / explanation page
+│
+├── extension/                     # BotWatch Chrome extension (Manifest V3)
+│   ├── manifest.json
+│   ├── background.js              # Service worker — calls the JSON API
+│   ├── content.js                 # Scrapes Twitter/X profile pages
+│   ├── popup.html / popup.js      # Toolbar popup UI
+│   └── icon-*.png                 # Real / fake / loading icons
+│
+├── app.py                         # Flask web app + JSON API
 ├── cli.py                         # Command line interface
 ├── requirements.txt               # Python dependencies
 ├── .gitignore
 └── README.md
 ```
+
+> The repository already ships a trained model (`models/*.joblib`) and a
+> prebuilt `data/accounts_lookup.csv`, so the web app, extension and CLI run
+> out of the box. You only need the steps below if you want to **retrain** the
+> model from the raw Cresci-2017 dataset.
 
 > **Important:** The `data/` and `models/` folders are excluded from git.
 > You must populate them yourself by following the setup steps below.
@@ -124,7 +263,7 @@ fake-account-detector/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/fake-account-detector.git
+git clone https://github.com/sakeenah-SA2/fake-account-detector.git
 cd fake-account-detector
 ```
 
@@ -447,10 +586,15 @@ is by far the strongest predictor of authenticity.
 
 - Train on a more recent dataset (TwiBot-22) to capture modern bot behaviour
 - Add NLP content features extracted from tweet text
-- Build a web dashboard using Flask and a simple HTML frontend
+- Make the extension's API endpoint configurable (local vs. hosted) instead of
+  hard-coded, and publish it to the Chrome Web Store
 - Support bulk analysis — accept a CSV of screen names and output results
 - Explore graph-based features using the follower network structure
 - Compare performance against deep learning approaches (LSTM, GNN)
+
+> ✅ **Done since the first release:** a Flask web app with an HTML frontend
+> (now [hosted live](https://botwatch-6qpn.onrender.com/)) and a Chrome
+> extension for in-browser detection.
 
 ---
 
@@ -521,6 +665,7 @@ shap>=0.42.0
 matplotlib>=3.6.0
 jupyter>=1.0.0
 ipykernel>=6.0.0
+flask>=2.3.0
 ```
 
 Install all at once:

@@ -7,10 +7,6 @@ fully explainable via SHAP values.
 
 **🔗 Live demo: [botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)**
 
-The model is available through three interfaces: a **web app** (link above), a
-**Chrome extension** that flags accounts as you browse Twitter/X, and a
-**command line interface**.
-
 > **Note:** The live demo is hosted on Render's free tier, so the first request
 > after a period of inactivity may take ~30–60 seconds to wake the server.
 
@@ -18,22 +14,38 @@ The model is available through three interfaces: a **web app** (link above), a
 
 ## Table of contents
 
+The README builds from the ground up — the dataset and the model first, then
+the applications that sit on top of them.
+
+**Foundations**
+
 - [Project overview](#project-overview)
-- [Live demo & interfaces](#live-demo--interfaces)
-- [Web app](#web-app)
-- [Browser extension](#browser-extension)
-- [JSON API](#json-api)
 - [Dataset](#dataset)
 - [Project structure](#project-structure)
 - [Setup — step by step](#setup--step-by-step)
-- [Running the notebooks](#running-the-notebooks)
-- [Using the CLI](#using-the-cli)
+
+**The model**
+
 - [How it works](#how-it-works)
 - [Features used](#features-used)
+- [Running the notebooks](#running-the-notebooks)
 - [Results](#results)
+
+**Applications**
+
+- [Applications & interfaces](#applications--interfaces)
+- [Using the CLI](#using-the-cli)
+- [JSON API](#json-api)
+- [Web app](#web-app)
+- [Browser extension](#browser-extension)
+
+**Reference**
+
 - [Limitations](#limitations)
 - [Future work](#future-work)
 - [Troubleshooting](#troubleshooting)
+- [Dependencies](#dependencies)
+- [Academic citation](#academic-citation)
 
 ---
 
@@ -50,114 +62,6 @@ machine learning pipeline that:
 5. Explains individual predictions using SHAP values
 6. Serves predictions through three interfaces — a Flask web app, a Chrome
    browser extension, and a command line interface
-
----
-
-## Live demo & interfaces
-
-The trained model can be used in three ways:
-
-| Interface         | Best for                                  | How to access                                                        |
-| ----------------- | ----------------------------------------- | -------------------------------------------------------------------- |
-| **Web app**       | Quick checks from any browser, no install | [botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)     |
-| **Chrome extension** | Live verdicts while browsing Twitter/X | Load `extension/` unpacked (see [Browser extension](#browser-extension)) |
-| **CLI**           | Scripting and dataset lookups             | `python cli.py` (see [Using the CLI](#using-the-cli))                |
-
-All three share the same prediction core in [`src/predict.py`](src/predict.py),
-so the verdict for a given account is identical regardless of how you reach it.
-
----
-
-## Web app
-
-A Flask web app ([`app.py`](app.py)) that wraps the model in a simple browser
-interface. It is deployed live at
-**[botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)**.
-
-Enter a Twitter/X screen name and the app either:
-
-- **Looks it up** in the bundled `data/accounts_lookup.csv` and shows the
-  model's verdict alongside the dataset's ground-truth label, or
-- **Falls back to manual entry** — if the name is not in the dataset, you can
-  type in the account's follower count, tweet count, bio/URL/location flags and
-  creation date, and the app predicts from those.
-
-### Run it locally
-
-```bash
-pip install -r requirements.txt
-python app.py
-```
-
-Then open <http://127.0.0.1:5000>. The app reads the `PORT` environment
-variable when set (used by the Render deployment), defaulting to `5000`.
-
----
-
-## Browser extension
-
-**BotWatch** ([`extension/`](extension/)) is a Manifest V3 Chrome extension
-that detects fake accounts automatically as you browse Twitter/X.
-
-- It runs a content script on `twitter.com` / `x.com` profile pages, scrapes
-  the visible stats (followers, following, posts, bio/URL/location, join date),
-  and estimates any values Twitter no longer shows.
-- It posts the data to the web app's [JSON API](#json-api) and **colours the
-  toolbar icon** — green for real, red for fake, while loading in between.
-- Click the icon to open a popup with the verdict, confidence, the top signals,
-  and to manually correct any scraped value and re-run the prediction.
-
-### Install (developer mode)
-
-1. Run the Flask app so the API is reachable (see [Web app](#web-app)).
-2. Open `chrome://extensions`, enable **Developer mode**.
-3. Click **Load unpacked** and select the `extension/` folder.
-4. Visit any Twitter/X profile — the icon updates automatically.
-
-> **Note:** The extension is currently hard-coded to call the local API at
-> `http://127.0.0.1:5000/predict-json` (see `FLASK_URL` in
-> [`extension/background.js`](extension/background.js) and
-> [`extension/popup.js`](extension/popup.js)). To use the hosted deployment
-> instead, change that constant to
-> `https://botwatch-6qpn.onrender.com/predict-json` and add the same origin to
-> `host_permissions` in [`extension/manifest.json`](extension/manifest.json).
-
----
-
-## JSON API
-
-Both the web app and the extension share a single JSON endpoint exposed by
-`app.py`:
-
-**`POST /predict-json`** — body is a raw account object, response is the
-prediction.
-
-```bash
-curl -X POST https://botwatch-6qpn.onrender.com/predict-json \
-  -H "Content-Type: application/json" \
-  -d '{
-        "screen_name": "example",
-        "followers_count": 120,
-        "friends_count": 2100,
-        "statuses_count": 35000,
-        "favourites_count": 12,
-        "listed_count": 0,
-        "description": "",
-        "url": null,
-        "location": "",
-        "created_at": "2022-04-01"
-      }'
-```
-
-```json
-{
-  "screen_name": "example",
-  "verdict": "FAKE",
-  "bot_probability": 0.91,
-  "confidence": "High",
-  "top_signals": [["Favourites (likes) given", 12], ["Tweets per day", 24.4]]
-}
-```
 
 ---
 
@@ -335,6 +239,60 @@ type nul > src\__init__.py
 
 ---
 
+## How it works
+
+### Step 1 — Data collection
+
+Six groups of labelled Twitter accounts are loaded from CSV and combined
+into a single DataFrame with a binary label column (0 = real, 1 = fake).
+
+### Step 2 — Feature engineering
+
+Thirteen features are engineered from raw account metadata. The key
+insight: real accounts average 4,669 likes given vs just 23 for fake
+accounts — a 200× difference that becomes the model's strongest signal.
+
+### Step 3 — Preprocessing
+
+Three problems are addressed: missing values (filled with training median),
+skewed distributions (compressed with log scaling), and class imbalance
+(handled with `class_weight="balanced"` in the classifier).
+
+### Step 4 — Model training
+
+A Random Forest builds 100 decision trees, each trained on a random
+sample of the data. At prediction time every tree votes and the majority
+wins. This approach is robust to outliers and provides built-in feature
+importance scores.
+
+### Step 5 — Explainability
+
+SHAP (SHapley Additive exPlanations) decomposes each prediction into
+per-feature contributions — showing exactly how much each clue pushed the
+score toward fake or real for any individual account.
+
+---
+
+## Features used
+
+| Feature                 | Type    | Description                             |
+| ----------------------- | ------- | --------------------------------------- |
+| `statuses_count`        | Direct  | Total tweets ever posted                |
+| `followers_count`       | Direct  | Number of followers                     |
+| `friends_count`         | Direct  | Number of accounts followed             |
+| `favourites_count`      | Direct  | Total likes given                       |
+| `listed_count`          | Direct  | Times added to Twitter lists            |
+| `follower_friend_ratio` | Ratio   | followers ÷ (friends + 1)               |
+| `tweet_frequency`       | Ratio   | statuses ÷ (account_age_days + 1)       |
+| `favourites_per_tweet`  | Ratio   | favourites ÷ (statuses + 1)             |
+| `listed_per_follower`   | Ratio   | listed ÷ (followers + 1)                |
+| `has_description`       | Flag    | 1 if account has a bio, else 0          |
+| `has_url`               | Flag    | 1 if account has a website URL, else 0  |
+| `has_location`          | Flag    | 1 if account has a location set, else 0 |
+| `account_age_days`      | Derived | Days since account creation             |
+
+---
+
 ## Running the notebooks
 
 > **The notebooks must be run in order, from 01 through to 05.**
@@ -412,6 +370,49 @@ models/shap_waterfall_real.png
 
 ---
 
+## Results
+
+| Metric                                 | Score      |
+| -------------------------------------- | ---------- |
+| Accuracy                               | 99%        |
+| F1 — fake class                        | 0.99       |
+| F1 — real class                        | 0.98       |
+| AUC-ROC                                | 0.9970     |
+| False positives (real flagged as fake) | 11 / 695   |
+| False negatives (bots missed)          | 19 / 1,853 |
+
+### Top features by SHAP importance
+
+| Rank | Feature                 | Contribution |
+| ---- | ----------------------- | ------------ |
+| 1    | `favourites_count`      | 30.9%        |
+| 2    | `favourites_per_tweet`  | 25.0%        |
+| 3    | `tweet_frequency`       | 14.4%        |
+| 4    | `statuses_count`        | 10.7%        |
+| 5    | `follower_friend_ratio` | 6.7%         |
+
+Engagement behaviour — how much an account interacts with other content —
+is by far the strongest predictor of authenticity.
+
+---
+
+## Applications & interfaces
+
+Everything above produces one thing: a trained model wrapped by the shared
+prediction core in [`src/predict.py`](src/predict.py). The rest of the project
+is applications built on top of that core — listed here from lowest-level to
+highest. Because they all call the same core, the verdict for a given account
+is identical no matter how you reach it.
+
+| Interface            | Best for                                  | How to access                                                            |
+| -------------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
+| **CLI**              | Scripting and dataset lookups             | `python cli.py` (see [Using the CLI](#using-the-cli))                    |
+| **JSON API**         | Programmatic access for any client        | `POST /predict-json` (see [JSON API](#json-api))                         |
+| **Web app**          | Quick checks from any browser, no install | [botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)         |
+| **Chrome extension** | Live verdicts while browsing Twitter/X    | Load `extension/` unpacked (see [Browser extension](#browser-extension)) |
+
+---
+
 ## Using the CLI
 
 Once all five notebooks have been run successfully the CLI is ready.
@@ -481,83 +482,96 @@ No ground truth is available for accounts outside the dataset, so
 
 ---
 
-## How it works
+## JSON API
 
-### Step 1 — Data collection
+Both the web app and the extension share a single JSON endpoint exposed by
+`app.py`:
 
-Six groups of labelled Twitter accounts are loaded from CSV and combined
-into a single DataFrame with a binary label column (0 = real, 1 = fake).
+**`POST /predict-json`** — body is a raw account object, response is the
+prediction.
 
-### Step 2 — Feature engineering
+```bash
+curl -X POST https://botwatch-6qpn.onrender.com/predict-json \
+  -H "Content-Type: application/json" \
+  -d '{
+        "screen_name": "example",
+        "followers_count": 120,
+        "friends_count": 2100,
+        "statuses_count": 35000,
+        "favourites_count": 12,
+        "listed_count": 0,
+        "description": "",
+        "url": null,
+        "location": "",
+        "created_at": "2022-04-01"
+      }'
+```
 
-Thirteen features are engineered from raw account metadata. The key
-insight: real accounts average 4,669 likes given vs just 23 for fake
-accounts — a 200× difference that becomes the model's strongest signal.
-
-### Step 3 — Preprocessing
-
-Three problems are addressed: missing values (filled with training median),
-skewed distributions (compressed with log scaling), and class imbalance
-(handled with `class_weight="balanced"` in the classifier).
-
-### Step 4 — Model training
-
-A Random Forest builds 100 decision trees, each trained on a random
-sample of the data. At prediction time every tree votes and the majority
-wins. This approach is robust to outliers and provides built-in feature
-importance scores.
-
-### Step 5 — Explainability
-
-SHAP (SHapley Additive exPlanations) decomposes each prediction into
-per-feature contributions — showing exactly how much each clue pushed the
-score toward fake or real for any individual account.
-
----
-
-## Features used
-
-| Feature                 | Type    | Description                             |
-| ----------------------- | ------- | --------------------------------------- |
-| `statuses_count`        | Direct  | Total tweets ever posted                |
-| `followers_count`       | Direct  | Number of followers                     |
-| `friends_count`         | Direct  | Number of accounts followed             |
-| `favourites_count`      | Direct  | Total likes given                       |
-| `listed_count`          | Direct  | Times added to Twitter lists            |
-| `follower_friend_ratio` | Ratio   | followers ÷ (friends + 1)               |
-| `tweet_frequency`       | Ratio   | statuses ÷ (account_age_days + 1)       |
-| `favourites_per_tweet`  | Ratio   | favourites ÷ (statuses + 1)             |
-| `listed_per_follower`   | Ratio   | listed ÷ (followers + 1)                |
-| `has_description`       | Flag    | 1 if account has a bio, else 0          |
-| `has_url`               | Flag    | 1 if account has a website URL, else 0  |
-| `has_location`          | Flag    | 1 if account has a location set, else 0 |
-| `account_age_days`      | Derived | Days since account creation             |
+```json
+{
+  "screen_name": "example",
+  "verdict": "FAKE",
+  "bot_probability": 0.91,
+  "confidence": "High",
+  "top_signals": [["Favourites (likes) given", 12], ["Tweets per day", 24.4]]
+}
+```
 
 ---
 
-## Results
+## Web app
 
-| Metric                                 | Score      |
-| -------------------------------------- | ---------- |
-| Accuracy                               | 99%        |
-| F1 — fake class                        | 0.99       |
-| F1 — real class                        | 0.98       |
-| AUC-ROC                                | 0.9970     |
-| False positives (real flagged as fake) | 11 / 695   |
-| False negatives (bots missed)          | 19 / 1,853 |
+A Flask web app ([`app.py`](app.py)) that wraps the model in a simple browser
+interface. It is deployed live at
+**[botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)**.
 
-### Top features by SHAP importance
+Enter a Twitter/X screen name and the app either:
 
-| Rank | Feature                 | Contribution |
-| ---- | ----------------------- | ------------ |
-| 1    | `favourites_count`      | 30.9%        |
-| 2    | `favourites_per_tweet`  | 25.0%        |
-| 3    | `tweet_frequency`       | 14.4%        |
-| 4    | `statuses_count`        | 10.7%        |
-| 5    | `follower_friend_ratio` | 6.7%         |
+- **Looks it up** in the bundled `data/accounts_lookup.csv` and shows the
+  model's verdict alongside the dataset's ground-truth label, or
+- **Falls back to manual entry** — if the name is not in the dataset, you can
+  type in the account's follower count, tweet count, bio/URL/location flags and
+  creation date, and the app predicts from those.
 
-Engagement behaviour — how much an account interacts with other content —
-is by far the strongest predictor of authenticity.
+### Run it locally
+
+```bash
+pip install -r requirements.txt
+python app.py
+```
+
+Then open <http://127.0.0.1:5000>. The app reads the `PORT` environment
+variable when set (used by the Render deployment), defaulting to `5000`.
+
+---
+
+## Browser extension
+
+**BotWatch** ([`extension/`](extension/)) is a Manifest V3 Chrome extension
+that detects fake accounts automatically as you browse Twitter/X.
+
+- It runs a content script on `twitter.com` / `x.com` profile pages, scrapes
+  the visible stats (followers, following, posts, bio/URL/location, join date),
+  and estimates any values Twitter no longer shows.
+- It posts the data to the web app's [JSON API](#json-api) and **colours the
+  toolbar icon** — green for real, red for fake, while loading in between.
+- Click the icon to open a popup with the verdict, confidence, the top signals,
+  and to manually correct any scraped value and re-run the prediction.
+
+### Install (developer mode)
+
+1. Run the Flask app so the API is reachable (see [Web app](#web-app)).
+2. Open `chrome://extensions`, enable **Developer mode**.
+3. Click **Load unpacked** and select the `extension/` folder.
+4. Visit any Twitter/X profile — the icon updates automatically.
+
+> **Note:** The extension is currently hard-coded to call the local API at
+> `http://127.0.0.1:5000/predict-json` (see `FLASK_URL` in
+> [`extension/background.js`](extension/background.js) and
+> [`extension/popup.js`](extension/popup.js)). To use the hosted deployment
+> instead, change that constant to
+> `https://botwatch-6qpn.onrender.com/predict-json` and add the same origin to
+> `host_permissions` in [`extension/manifest.json`](extension/manifest.json).
 
 ---
 

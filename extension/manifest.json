@@ -6,12 +6,14 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "tabs"
+    "tabs",
+    "storage"
   ],
   "host_permissions": [
     "https://twitter.com/*",
     "https://x.com/*",
-    "http://127.0.0.1:5000/*"
+    "http://127.0.0.1:5000/*",
+    "https://botwatch-6qpn.onrender.com/*"
   ],
   "background": {
     "service_worker": "background.js"

@@ -1,10 +1,22 @@
 // popup.js
 
-const FLASK_URL = "http://127.0.0.1:5000/predict-json";
 let screenName = "";
 let currentTabId = null;
 
+// Wire up the "⚙ API endpoint" panel (Local vs Hosted). Defaults to local.
+async function initSettings() {
+  const { apiMode = "local" } = await chrome.storage.sync.get("apiMode");
+  const radios = document.querySelectorAll('input[name="apiMode"]');
+  radios.forEach(r => { r.checked = (r.value === apiMode); });
+  radios.forEach(r => r.addEventListener("change", () => {
+    const mode = document.querySelector('input[name="apiMode"]:checked').value;
+    chrome.storage.sync.set({ apiMode: mode });
+  }));
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+  await initSettings();
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const url   = tab.url || "";
   currentTabId = tab.id;
@@ -29,8 +41,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       showResult(cached.result);
       document.getElementById("status").textContent = "Done";
     } else if (cached && cached.error) {
-      document.getElementById("status").textContent = "Flask offline";
-      showError("Cannot reach Flask server. Make sure it is running on http://127.0.0.1:5000");
+      document.getElementById("status").textContent = "Server offline";
+      chrome.storage.sync.get("apiMode", ({ apiMode = "local" }) => {
+        showError(apiMode === "hosted"
+          ? "Cannot reach the hosted server. It may be waking up on Render's free tier — try again in ~30–60s."
+          : "Cannot reach the local server. Make sure Flask is running on http://127.0.0.1:5000.");
+      });
     } else {
       // No cached result yet — scrape and show form
       document.getElementById("status").textContent = "Scraping…";

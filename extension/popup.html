@@ -267,6 +267,39 @@
     font-size: 13px;
     line-height: 1.6;
   }
+
+  /* API endpoint settings */
+  .settings {
+    margin-top: 12px;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 10px;
+  }
+
+  .settings summary {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+
+  .settings summary::-webkit-details-marker { display: none; }
+
+  .settings-body { margin-top: 10px; }
+
+  .radio-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #374151;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 500;
+    margin-bottom: 6px;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -365,6 +398,21 @@
     Use "Suggest" for estimates or enter manually.
   </p>
 
+</div>
+
+<!-- API endpoint settings — always available -->
+<div class="body" style="padding-top:0">
+  <details class="settings" id="settings">
+    <summary>⚙ API endpoint</summary>
+    <div class="settings-body">
+      <label class="radio-row">
+        <input type="radio" name="apiMode" value="local" checked/> Local (127.0.0.1:5000)
+      </label>
+      <label class="radio-row">
+        <input type="radio" name="apiMode" value="hosted"/> Hosted (Render)
+      </label>
+    </div>
+  </details>
 </div>
 
 <script src="popup.js"></script>

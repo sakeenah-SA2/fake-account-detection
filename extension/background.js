@@ -1,7 +1,14 @@
 // background.js — service worker
 // Listens for scraped profile data, calls Flask, updates the icon
 
-const FLASK_URL = "http://127.0.0.1:5000/predict-json";
+const LOCAL_URL  = "http://127.0.0.1:5000/predict-json";
+const HOSTED_URL = "https://botwatch-6qpn.onrender.com/predict-json";
+
+// Pick the endpoint from the saved choice. Defaults to local.
+async function getEndpoint() {
+  const { apiMode = "local" } = await chrome.storage.sync.get("apiMode");
+  return apiMode === "hosted" ? HOSTED_URL : LOCAL_URL;
+}
 
 // Store last result per tab so popup can read it instantly
 const tabResults = {};
@@ -16,11 +23,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     const payload = buildPayload(message.data);
 
-    fetch(FLASK_URL, {
+    getEndpoint().then(url => fetch(url, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify(payload)
-    })
+    }))
     .then(res => {
       if (!res.ok) throw new Error("Server error");
       return res.json();
@@ -61,11 +68,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     setIcon(tabId, "loading");
 
-    fetch(FLASK_URL, {
+    getEndpoint().then(url => fetch(url, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify(payload)
-    })
+    }))
     .then(res => res.json())
     .then(result => {
       result.top_signals = result.top_signals.map(s => Array.isArray(s) ? s : [s[0], s[1]]);

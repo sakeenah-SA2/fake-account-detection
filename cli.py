@@ -10,6 +10,12 @@ import os
 import argparse
 import pandas as pd
 
+# Ensure Unicode box-drawing characters print on Windows consoles (cp1252).
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except (AttributeError, OSError):
+    pass
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.predict import predict
 
@@ -20,22 +26,13 @@ DATA_PATH = os.path.join(BASE_DIR, "data")
 # ── data loading ──────────────────────────────────────────────────────────────
 
 def load_all_accounts() -> pd.DataFrame:
-    groups = {
-        "genuine_accounts":       0,
-        "social_spambots_1":      1,
-        "social_spambots_2":      1,
-        "social_spambots_3":      1,
-        "traditional_spambots_1": 1,
-        "fake_followers":         1,
-    }
-    frames = []
-    for folder, label in groups.items():
-        path = os.path.join(DATA_PATH, folder, "users.csv")
-        if os.path.exists(path):
-            df = pd.read_csv(path)
-            df["true_label"] = label
-            frames.append(df)
-    combined = pd.concat(frames, ignore_index=True)
+    lookup_path = os.path.join(DATA_PATH, "accounts_lookup.csv")
+    if not os.path.exists(lookup_path):
+        raise FileNotFoundError(
+            f"Account lookup file not found: {lookup_path}\n"
+            "Expected a pre-built 'accounts_lookup.csv' in the data/ directory."
+        )
+    combined = pd.read_csv(lookup_path)
     combined["screen_name_lower"] = combined["screen_name"].str.lower().fillna("")
     return combined
 

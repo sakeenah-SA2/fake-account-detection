@@ -553,25 +553,36 @@ that detects fake accounts automatically as you browse Twitter/X.
 - It runs a content script on `twitter.com` / `x.com` profile pages, scrapes
   the visible stats (followers, following, posts, bio/URL/location, join date),
   and estimates any values Twitter no longer shows.
-- It posts the data to the web app's [JSON API](#json-api) and **colours the
-  toolbar icon** — green for real, red for fake, while loading in between.
+- It posts the data to the [JSON API](#json-api) and **colours the toolbar
+  icon** — green for real, red for fake, while loading in between.
 - Click the icon to open a popup with the verdict, confidence, the top signals,
   and to manually correct any scraped value and re-run the prediction.
+- Choose where predictions are sent from the popup — a **Local / Hosted**
+  toggle (defaults to Local), so you can run against your own Flask server or
+  the live Render deployment without editing any code.
 
 ### Install (developer mode)
 
-1. Run the Flask app so the API is reachable (see [Web app](#web-app)).
+1. _(Local mode only)_ Run the Flask app so the API is reachable (see
+   [Web app](#web-app)). To use the hosted API instead, skip this and choose
+   **Hosted** in the popup.
 2. Open `chrome://extensions`, enable **Developer mode**.
 3. Click **Load unpacked** and select the `extension/` folder.
 4. Visit any Twitter/X profile — the icon updates automatically.
 
-> **Note:** The extension is currently hard-coded to call the local API at
-> `http://127.0.0.1:5000/predict-json` (see `FLASK_URL` in
-> [`extension/background.js`](extension/background.js) and
-> [`extension/popup.js`](extension/popup.js)). To use the hosted deployment
-> instead, change that constant to
-> `https://botwatch-6qpn.onrender.com/predict-json` and add the same origin to
-> `host_permissions` in [`extension/manifest.json`](extension/manifest.json).
+### Choosing the API endpoint
+
+Open the popup and expand **⚙ API endpoint** to switch between:
+
+- **Local** — `http://127.0.0.1:5000/predict-json` (default). Requires the
+  Flask app to be running locally.
+- **Hosted** — `https://botwatch-6qpn.onrender.com/predict-json`. Works with no
+  local setup; allow ~30–60 seconds on the first request while Render's free
+  tier wakes the server.
+
+The choice is saved (via `chrome.storage`) and applies to the next prediction —
+no reload required. Both origins are declared in `host_permissions` in
+[`extension/manifest.json`](extension/manifest.json).
 
 ---
 
@@ -600,15 +611,15 @@ that detects fake accounts automatically as you browse Twitter/X.
 
 - Train on a more recent dataset (TwiBot-22) to capture modern bot behaviour
 - Add NLP content features extracted from tweet text
-- Make the extension's API endpoint configurable (local vs. hosted) instead of
-  hard-coded, and publish it to the Chrome Web Store
+- Publish the extension to the Chrome Web Store
 - Support bulk analysis — accept a CSV of screen names and output results
 - Explore graph-based features using the follower network structure
 - Compare performance against deep learning approaches (LSTM, GNN)
 
 > ✅ **Done since the first release:** a Flask web app with an HTML frontend
-> (now [hosted live](https://botwatch-6qpn.onrender.com/)) and a Chrome
-> extension for in-browser detection.
+> (now [hosted live](https://botwatch-6qpn.onrender.com/)), a Chrome extension
+> for in-browser detection, and a Local/Hosted API toggle in the extension
+> popup (defaults to local).
 
 ---
 

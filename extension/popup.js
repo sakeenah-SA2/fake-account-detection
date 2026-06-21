@@ -34,9 +34,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     } else {
       // No cached result yet — scrape and show form
       document.getElementById("status").textContent = "Scraping…";
-      chrome.tabs.sendMessage(tab.id, { action: "scrape" }, data => {
+      requestScrape(data => {
         if (data) populateFromScrape(data);
-        document.getElementById("status").textContent = "Ready";
+        document.getElementById("status").textContent = data ? "Ready" : "Reload the page";
       });
     }
   });
@@ -49,9 +49,53 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  document.getElementById("scrape-btn").addEventListener("click", rescrape);
   document.getElementById("suggest-btn").addEventListener("click", suggestMissing);
   document.getElementById("analyse-btn").addEventListener("click", runManualPredict);
 });
+
+
+// ── Scraping helpers ────────────────────────────────────────────────────────
+
+// Ask the content script to scrape. If it isn't loaded (page opened before the
+// extension), inject it programmatically and retry once.
+function requestScrape(callback) {
+  chrome.tabs.sendMessage(currentTabId, { action: "scrape" }, data => {
+    if (!chrome.runtime.lastError && data) {
+      callback(data);
+      return;
+    }
+    chrome.scripting.executeScript(
+      { target: { tabId: currentTabId }, files: ["content.js"] },
+      () => {
+        if (chrome.runtime.lastError) { callback(null); return; }
+        chrome.tabs.sendMessage(currentTabId, { action: "scrape" }, retry => {
+          callback(chrome.runtime.lastError ? null : retry);
+        });
+      }
+    );
+  });
+}
+
+// Re-scrape button: read the current page again and refresh the form.
+function rescrape() {
+  const btn = document.getElementById("scrape-btn");
+  btn.disabled = true;
+  btn.textContent = "Scraping…";
+  document.getElementById("status").textContent = "Scraping…";
+
+  requestScrape(data => {
+    if (data) {
+      populateFromScrape(data);
+      document.getElementById("status").textContent = "Re-scraped ✓";
+    } else {
+      document.getElementById("status").textContent = "Reload the page";
+      showError("Couldn't read the page. Reload the Twitter/X tab and try again.");
+    }
+    btn.disabled = false;
+    btn.textContent = "↻ Re-scrape from page";
+  });
+}
 
 
 // ── Populate form ─────────────────────────────────────────────────────────
@@ -64,6 +108,9 @@ function populateFromScrape(data) {
     if (value !== undefined && value !== null && value !== 0) {
       document.getElementById(id).value = value;
       if (badgeId) document.getElementById(badgeId).style.display = "inline";
+      // A freshly scraped value supersedes any previous estimate.
+      const estBadge = document.getElementById(id + "-est-badge");
+      if (estBadge) estBadge.style.display = "none";
     }
   }
 

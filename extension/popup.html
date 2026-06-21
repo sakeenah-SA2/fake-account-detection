@@ -144,6 +144,15 @@
 
   .btn-suggest:hover { background: #dbeafe; }
 
+  .btn-scrape {
+    background: #fff;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    margin-bottom: 8px;
+  }
+
+  .btn-scrape:hover:not(:disabled) { background: #f3f4f6; }
+
   /* Suggest note */
   .suggest-note {
     font-size: 11px;
@@ -338,6 +347,8 @@
       <input type="checkbox" id="has_location"/> Has location
     </label>
   </div>
+
+  <button class="btn btn-scrape" id="scrape-btn">↻ Re-scrape from page</button>
 
   <button class="btn btn-suggest" id="suggest-btn">Suggest missing values</button>
 

@@ -10,7 +10,7 @@ import os
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJECT_ROOT)
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_from_directory
 from src.predict import predict
 import pandas as pd
 
@@ -35,6 +35,12 @@ accounts_df = load_all_accounts()
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/google805b58db16185516.html")
+def google_site_verification():
+    """Serve the Google Search Console ownership-verification file."""
+    return send_from_directory(PROJECT_ROOT, "google805b58db16185516.html")
 
 
 @app.route("/analyse", methods=["POST"])

@@ -4,7 +4,13 @@ let screenName = "";
 let currentTabId = null;
 
 // Wire up the "⚙ API endpoint" panel (Local vs Hosted). Defaults to local.
+// The release build is hosted-only, so the panel is hidden there.
 async function initSettings() {
+  if (self.CHANNEL === "release") {
+    const panel = document.getElementById("settings");
+    if (panel) panel.style.display = "none";
+    return;
+  }
   const { apiMode = "local" } = await chrome.storage.sync.get("apiMode");
   const radios = document.querySelectorAll('input[name="apiMode"]');
   radios.forEach(r => { r.checked = (r.value === apiMode); });
@@ -42,11 +48,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       document.getElementById("status").textContent = "Done";
     } else if (cached && cached.error) {
       document.getElementById("status").textContent = "Server offline";
-      chrome.storage.sync.get("apiMode", ({ apiMode = "local" }) => {
-        showError(apiMode === "hosted"
-          ? "Cannot reach the hosted server. It may be waking up on Render's free tier — try again in ~30–60s."
-          : "Cannot reach the local server. Make sure Flask is running on http://127.0.0.1:5000.");
-      });
+      const hostedMsg = "Cannot reach the hosted server. It may be waking up on Render's free tier — try again in ~30–60s.";
+      const localMsg  = "Cannot reach the local server. Make sure Flask is running on http://127.0.0.1:5000.";
+      if (self.CHANNEL === "release") {
+        showError(hostedMsg);
+      } else {
+        chrome.storage.sync.get("apiMode", ({ apiMode = "local" }) => {
+          showError(apiMode === "hosted" ? hostedMsg : localMsg);
+        });
+      }
     } else {
       // No cached result yet — scrape and show form
       document.getElementById("status").textContent = "Scraping…";

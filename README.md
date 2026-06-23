@@ -134,6 +134,9 @@ fake-account-detector/
 │   ├── background.js              # Service worker — calls the JSON API
 │   ├── content.js                 # Scrapes Twitter/X profile pages
 │   ├── popup.html / popup.js      # Toolbar popup UI
+│   ├── channel.js                 # Build channel flag (dev / release)
+│   ├── build.js                   # Builds dist/dev and dist/release
+│   ├── dist/                      # Build output (git-ignored)
 │   └── icon-*.png                 # Real / fake / loading icons
 │
 ├── app.py                         # Flask web app + JSON API
@@ -557,9 +560,10 @@ that detects fake accounts automatically as you browse Twitter/X.
   icon** — green for real, red for fake, while loading in between.
 - Click the icon to open a popup with the verdict, confidence, the top signals,
   and to manually correct any scraped value and re-run the prediction.
-- Choose where predictions are sent from the popup — a **Local / Hosted**
-  toggle (defaults to Local), so you can run against your own Flask server or
-  the live Render deployment without editing any code.
+- The **dev** build lets you choose where predictions are sent from the popup —
+  a **Local / Hosted** toggle (defaults to Local) — so you can run against your
+  own Flask server or the live Render deployment without editing any code. The
+  **release** build is hosted-only (see [Builds](#builds--dev-vs-release)).
 
 ### Install (developer mode)
 
@@ -570,9 +574,10 @@ that detects fake accounts automatically as you browse Twitter/X.
 3. Click **Load unpacked** and select the `extension/` folder.
 4. Visit any Twitter/X profile — the icon updates automatically.
 
-### Choosing the API endpoint
+### Choosing the API endpoint (dev build)
 
-Open the popup and expand **⚙ API endpoint** to switch between:
+In the **dev** build, open the popup and expand **⚙ API endpoint** to switch
+between:
 
 - **Local** — `http://127.0.0.1:5000/predict-json` (default). Requires the
   Flask app to be running locally.
@@ -581,8 +586,57 @@ Open the popup and expand **⚙ API endpoint** to switch between:
   tier wakes the server.
 
 The choice is saved (via `chrome.storage`) and applies to the next prediction —
-no reload required. Both origins are declared in `host_permissions` in
-[`extension/manifest.json`](extension/manifest.json).
+no reload required. The **release** build has no toggle — it always uses the
+hosted endpoint (see below).
+
+### Builds — dev vs release
+
+`extension/` is the single source. A dependency-free build script
+([`extension/build.js`](extension/build.js)) produces two flavours into
+`extension/dist/`:
+
+```bash
+node extension/build.js
+```
+
+| Build                    | Endpoint(s)          | `host_permissions` | `storage` perm | Popup toggle |
+| ------------------------ | -------------------- | ------------------ | -------------- | ------------ |
+| `extension/dist/dev`     | Local **and** Hosted | localhost + Render | yes            | shown        |
+| `extension/dist/release` | Hosted only          | Render only        | no             | hidden       |
+
+The only per-build differences are a generated `channel.js` flag
+(`self.CHANNEL`) and a few manifest tweaks; everything else is identical. The
+release build drops the localhost host permission and the `storage` permission
+so the published extension requests the minimum needed for store review.
+
+> Loading `extension/` directly (Load unpacked) behaves as the **dev** build,
+> so you don't have to run the build script during development.
+
+### Publishing to the Chrome Web Store
+
+1. Bump `version` in [`extension/manifest.json`](extension/manifest.json).
+2. Run `node extension/build.js`.
+3. Zip the **release** build (the zip's contents must be the files, not a parent
+   folder):
+
+   ```powershell
+   # Windows — PowerShell
+   Compress-Archive -Path extension/dist/release/* -DestinationPath botwatch-release.zip -Force
+   ```
+
+   ```cmd
+   :: Windows — Command Prompt (cmd.exe). Compress-Archive is PowerShell-only,
+   :: so wrap it, or use the built-in tar:
+   tar -a -c -f botwatch-release.zip -C extension/dist/release .
+   ```
+
+   ```bash
+   # macOS / Linux
+   cd extension/dist/release && zip -r ../../../botwatch-release.zip . && cd ../../..
+   ```
+
+4. Upload `botwatch-release.zip` in the
+   [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole/).
 
 ---
 

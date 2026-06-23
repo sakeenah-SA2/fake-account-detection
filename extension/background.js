@@ -1,11 +1,15 @@
 // background.js — service worker
 // Listens for scraped profile data, calls Flask, updates the icon
 
+importScripts("channel.js"); // defines self.CHANNEL ("dev" | "release")
+
 const LOCAL_URL  = "http://127.0.0.1:5000/predict-json";
 const HOSTED_URL = "https://botwatch-6qpn.onrender.com/predict-json";
 
-// Pick the endpoint from the saved choice. Defaults to local.
+// Pick the endpoint. The release build is hosted-only; the dev build honours
+// the Local/Hosted choice saved from the popup (defaulting to local).
 async function getEndpoint() {
+  if (self.CHANNEL === "release") return HOSTED_URL;
   const { apiMode = "local" } = await chrome.storage.sync.get("apiMode");
   return apiMode === "hosted" ? HOSTED_URL : LOCAL_URL;
 }

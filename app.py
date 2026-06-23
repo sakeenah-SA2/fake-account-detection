@@ -43,6 +43,12 @@ def google_site_verification():
     return send_from_directory(PROJECT_ROOT, "google805b58db16185516.html")
 
 
+@app.route("/privacy")
+def privacy():
+    """Privacy policy (required for the Chrome Web Store listing)."""
+    return render_template("privacy.html")
+
+
 @app.route("/analyse", methods=["POST"])
 def analyse():
     screen_name = request.form.get("screen_name", "").strip().lstrip("@")

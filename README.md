@@ -6,6 +6,7 @@ Random Forest classifier trained on the Cresci-2017 dataset. The model achieves
 fully explainable via SHAP values.
 
 **🔗 Live demo: [botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)**
+**· Chrome extension: [BotWatch on the Chrome Web Store](https://chromewebstore.google.com/detail/botwatch-%E2%80%94-fake-account-d/cficoapfgeahhbpjocapjmaeingkpfnb)**
 
 > **Note:** The live demo is hosted on Render's free tier, so the first request
 > after a period of inactivity may take ~30–60 seconds to wake the server.
@@ -415,7 +416,7 @@ is identical no matter how you reach it.
 | **CLI (from source)** | Developers — offline, local model         | `python cli.py` (see [Using the CLI](#using-the-cli))                    |
 | **JSON API**          | Programmatic access for any client        | `POST /predict-json` (see [JSON API](#json-api))                         |
 | **Web app**           | Quick checks from any browser, no install | [botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)         |
-| **Chrome extension**  | Live verdicts while browsing Twitter/X    | Load `extension/` unpacked (see [Browser extension](#browser-extension)) |
+| **Chrome extension**  | Live verdicts while browsing Twitter/X    | [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/botwatch-%E2%80%94-fake-account-d/cficoapfgeahhbpjocapjmaeingkpfnb) |
 
 ---
 
@@ -616,7 +617,14 @@ that detects fake accounts automatically as you browse Twitter/X.
   own Flask server or the live Render deployment without editing any code. The
   **release** build is hosted-only (see [Builds](#builds--dev-vs-release)).
 
-### Install (developer mode)
+### Install from the Chrome Web Store (recommended)
+
+Install **[BotWatch](https://chromewebstore.google.com/detail/botwatch-%E2%80%94-fake-account-d/cficoapfgeahhbpjocapjmaeingkpfnb)**
+directly from the Chrome Web Store, then visit any Twitter/X profile — the icon
+updates automatically. This is the published **release** build, which uses the
+hosted API (no local setup needed).
+
+### Install unpacked (developer mode)
 
 1. _(Local mode only)_ Run the Flask app so the API is reachable (see
    [Web app](#web-app)). To use the hosted API instead, skip this and choose

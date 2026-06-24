@@ -140,7 +140,9 @@ fake-account-detector/
 │   └── icon-*.png                 # Real / fake / loading icons
 │
 ├── app.py                         # Flask web app + JSON API
-├── cli.py                         # Command line interface
+├── cli.py                         # Command line interface (local model)
+├── botwatch.py                    # Standalone CLI (hosted API, no deps)
+├── build-cli.py                   # Builds botwatch.py into a single .exe
 ├── requirements.txt               # Python dependencies
 ├── .gitignore
 └── README.md
@@ -407,21 +409,65 @@ is applications built on top of that core — listed here from lowest-level to
 highest. Because they all call the same core, the verdict for a given account
 is identical no matter how you reach it.
 
-| Interface            | Best for                                  | How to access                                                            |
-| -------------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
-| **CLI**              | Scripting and dataset lookups             | `python cli.py` (see [Using the CLI](#using-the-cli))                    |
-| **JSON API**         | Programmatic access for any client        | `POST /predict-json` (see [JSON API](#json-api))                         |
-| **Web app**          | Quick checks from any browser, no install | [botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)         |
-| **Chrome extension** | Live verdicts while browsing Twitter/X    | Load `extension/` unpacked (see [Browser extension](#browser-extension)) |
+| Interface             | Best for                                  | How to access                                                            |
+| --------------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
+| **CLI (standalone)**  | End users — no Python, no setup           | Download `botwatch.exe`, run it (see [Using the CLI](#using-the-cli))    |
+| **CLI (from source)** | Developers — offline, local model         | `python cli.py` (see [Using the CLI](#using-the-cli))                    |
+| **JSON API**          | Programmatic access for any client        | `POST /predict-json` (see [JSON API](#json-api))                         |
+| **Web app**           | Quick checks from any browser, no install | [botwatch-6qpn.onrender.com](https://botwatch-6qpn.onrender.com/)         |
+| **Chrome extension**  | Live verdicts while browsing Twitter/X    | Load `extension/` unpacked (see [Browser extension](#browser-extension)) |
 
 ---
 
 ## Using the CLI
 
-Once all five notebooks have been run successfully the CLI is ready.
+There are two CLIs:
+
+- **`botwatch` (standalone)** — for end users. A single executable that needs
+  no Python, no packages, and no model files; it calls the hosted API. This is
+  the easy "download and use" option.
+- **`cli.py` (from source)** — for developers. Runs the model locally and works
+  offline, but requires the Python environment and model files described above.
+
+### Standalone — download and run (no Python needed)
+
+`botwatch.py` is a self-contained CLI that uses only the Python standard library
+and computes predictions via the hosted API. Build it into a single executable
+with [PyInstaller](https://pyinstaller.org/):
+
+```bash
+pip install pyinstaller
+python build-cli.py          # produces dist/botwatch.exe (≈8 MB)
+```
+
+End users then just run the file — no install step:
+
+```bash
+botwatch                     # interactive mode
+botwatch --name elonmusk     # analyse one account
+botwatch --list              # browse the lookup dataset (paged)
+botwatch --list -q bask --label real   # search the list, real accounts only
+botwatch -n elonmusk --api http://127.0.0.1:5000   # point at a local server
+```
+
+In interactive mode, type a screen name to analyse it, or `list` to browse the
+dataset. When listing, use Enter / `p` / a page number / `q` to navigate.
+
+If a screen name is in the bundled dataset, the server returns the model's
+verdict and the ground-truth label; otherwise the CLI asks you to enter the
+account's stats and predicts from those. The first request may take ~30–60s
+while the free-tier host wakes up.
+
+> The dataset-lookup feature relies on the `/lookup-json` API route. If the
+> server doesn't have it yet, the standalone CLI automatically falls back to
+> manual entry.
+
+### From source (local model)
+
+Once all five notebooks have been run successfully, `cli.py` is ready.
 Always run it from the **project root directory** (not from inside `src/`).
 
-### Interactive mode
+#### Interactive mode
 
 ```bash
 python cli.py
@@ -430,7 +476,7 @@ python cli.py
 You will be prompted to type a Twitter screen name one at a time.
 Type `quit` to exit.
 
-### Single account — direct lookup
+#### Single account — direct lookup
 
 ```bash
 python cli.py --name 0918Bask
@@ -535,6 +581,11 @@ Enter a Twitter/X screen name and the app either:
 - **Falls back to manual entry** — if the name is not in the dataset, you can
   type in the account's follower count, tweet count, bio/URL/location flags and
   creation date, and the app predicts from those.
+
+You can also **browse the labelled accounts** at
+[`/accounts`](https://botwatch-6qpn.onrender.com/accounts) — a searchable,
+paginated list with a real/fake filter. The same data is exposed as JSON at
+`GET /accounts-json` (used by the CLI's `--list`).
 
 ### Run it locally
 

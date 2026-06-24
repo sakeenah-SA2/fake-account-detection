@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BotWatch — Dataset accounts</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f5f5f5;
+        color: #222;
+        padding: 40px 20px;
+      }
+
+      .container { max-width: 760px; margin: 0 auto; }
+
+      h1 { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+
+      .subtitle { font-size: 14px; color: #666; margin-bottom: 20px; }
+
+      .controls {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        min-width: 160px;
+        border: 1px solid #ccc;
+        border-radius: 7px;
+        padding: 9px 12px;
+        font-size: 14px;
+        outline: none;
+      }
+      input[type="text"]:focus { border-color: #3b82f6; }
+
+      select {
+        border: 1px solid #ccc;
+        border-radius: 7px;
+        padding: 9px 12px;
+        font-size: 14px;
+        background: #fff;
+      }
+
+      button {
+        background: #3b82f6;
+        color: #fff;
+        border: none;
+        border-radius: 7px;
+        padding: 9px 18px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover { background: #2563eb; }
+
+      .analyse-btn {
+        padding: 5px 12px;
+        font-size: 12px;
+        background: #f0f7ff;
+        color: #3b82f6;
+        border: 1px solid #bfdbfe;
+      }
+      .analyse-btn:hover { background: #dbeafe; }
+
+      .count { font-size: 13px; color: #666; margin-bottom: 10px; }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+
+      th, td {
+        text-align: left;
+        padding: 10px 14px;
+        font-size: 14px;
+        border-bottom: 1px solid #f0f0f0;
+      }
+
+      th {
+        background: #fafafa;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #888;
+      }
+
+      tr:last-child td { border-bottom: none; }
+
+      .handle { font-weight: 600; color: #111; text-decoration: none; }
+      .handle:hover { color: #3b82f6; }
+
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 100px;
+        padding: 2px 10px;
+      }
+      .badge.real { background: #dcfce7; color: #16a34a; }
+      .badge.fake { background: #fee2e2; color: #dc2626; }
+
+      .empty { padding: 28px; text-align: center; color: #888; font-size: 14px; }
+
+      .pager {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 16px;
+      }
+
+      .pager a, .pager span {
+        font-size: 14px;
+        color: #3b82f6;
+        text-decoration: none;
+        padding: 7px 14px;
+        border: 1px solid #bfdbfe;
+        border-radius: 7px;
+        background: #f0f7ff;
+      }
+      .pager a:hover { background: #dbeafe; }
+      .pager .disabled { color: #bbb; border-color: #eee; background: #fafafa; cursor: default; }
+      .pager .page-info { border: none; background: none; color: #666; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Dataset accounts</h1>
+      <p class="subtitle">
+        Browse the labelled accounts BotWatch can look up. 0 = real, 1 = fake.
+      </p>
+
+      <form class="controls" method="GET" action="/accounts">
+        <input
+          type="text"
+          name="q"
+          value="{{ q }}"
+          placeholder="Search screen name or display name…"
+          autocomplete="off"
+        />
+        <select name="label">
+          <option value="all"  {% if label == 'all'  %}selected{% endif %}>All</option>
+          <option value="real" {% if label == 'real' %}selected{% endif %}>Real only</option>
+          <option value="fake" {% if label == 'fake' %}selected{% endif %}>Fake only</option>
+        </select>
+        <button type="submit">Search</button>
+      </form>
+
+      <p class="count">{{ "{:,}".format(data.total) }} accounts found</p>
+
+      {% if data.accounts %}
+      <table>
+        <thead>
+          <tr>
+            <th>Screen name</th>
+            <th>Label</th>
+            <th>Display name</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in data.accounts %}
+          <tr>
+            <td>
+              {% if a.true_label == 1 %}
+              <span class="handle">@{{ a.screen_name }}</span>
+              {% else %}
+              <a class="handle" href="https://x.com/{{ a.screen_name }}"
+                 target="_blank" rel="noopener noreferrer">@{{ a.screen_name }}</a>
+              {% endif %}
+            </td>
+            <td>
+              {% if a.true_label == 1 %}
+              <span class="badge fake">FAKE</span>
+              {% else %}
+              <span class="badge real">REAL</span>
+              {% endif %}
+            </td>
+            <td>{{ a.name }}</td>
+            <td>
+              <form method="POST" action="/analyse" style="margin:0">
+                <input type="hidden" name="screen_name" value="{{ a.screen_name }}" />
+                <button type="submit" class="analyse-btn">Analyse</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="pager">
+        {% if data.page > 1 %}
+        <a href="/accounts?q={{ q|urlencode }}&label={{ label }}&page={{ data.page - 1 }}">‹ Prev</a>
+        {% else %}
+        <span class="disabled">‹ Prev</span>
+        {% endif %}
+
+        <span class="page-info">Page {{ data.page }} of {{ data.pages }}</span>
+
+        {% if data.page < data.pages %}
+        <a href="/accounts?q={{ q|urlencode }}&label={{ label }}&page={{ data.page + 1 }}">Next ›</a>
+        {% else %}
+        <span class="disabled">Next ›</span>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="empty">No accounts match your search.</div>
+      {% endif %}
+    </div>
+  </body>
+</html>

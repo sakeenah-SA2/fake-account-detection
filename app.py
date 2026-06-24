@@ -10,7 +10,7 @@ import os
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJECT_ROOT)
 
-from flask import Flask, render_template, request, send_from_directory
+from flask import Flask, render_template, request, send_from_directory, jsonify
 from src.predict import predict
 import pandas as pd
 
@@ -30,6 +30,53 @@ def load_all_accounts() -> pd.DataFrame:
 
 print("Loading dataset...")
 accounts_df = load_all_accounts()
+
+
+def _to_int(value, default):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def query_accounts(q="", label="all", page=1, per_page=50):
+    """Filter/paginate the lookup dataset. Shared by the page, API and CLI."""
+    per_page = max(1, min(_to_int(per_page, 50), 200))
+    page     = max(1, _to_int(page, 1))
+
+    if accounts_df.empty:
+        return {"total": 0, "page": 1, "per_page": per_page, "pages": 0, "accounts": []}
+
+    mask = pd.Series(True, index=accounts_df.index)
+    if label == "real":
+        mask &= accounts_df["true_label"] == 0
+    elif label == "fake":
+        mask &= accounts_df["true_label"] == 1
+
+    q = (q or "").strip().lower()
+    if q:
+        names = accounts_df["name"].astype(str).str.lower()
+        mask &= (
+            accounts_df["screen_name_lower"].str.contains(q, na=False, regex=False)
+            | names.str.contains(q, na=False, regex=False)
+        )
+
+    subset = accounts_df[mask]
+    total  = len(subset)
+    pages  = (total + per_page - 1) // per_page
+    page   = min(page, pages) if pages else 1
+    start  = (page - 1) * per_page
+    rows   = subset.iloc[start:start + per_page]
+
+    accounts = [
+        {
+            "screen_name": str(r["screen_name"]),
+            "name":        "" if pd.isna(r.get("name")) else str(r["name"]),
+            "true_label":  int(r["true_label"]),
+        }
+        for _, r in rows.iterrows()
+    ]
+    return {"total": total, "page": page, "per_page": per_page, "pages": pages, "accounts": accounts}
 
 
 @app.route("/")
@@ -97,10 +144,57 @@ def analyse():
 
     return render_template("index.html", not_found=screen_name, screen_name=screen_name)
 
+@app.route("/accounts")
+def accounts_page():
+    """Browse the lookup dataset in the browser."""
+    q     = request.args.get("q", "")
+    label = request.args.get("label", "all")
+    data  = query_accounts(q=q, label=label, page=request.args.get("page", 1))
+    return render_template("accounts.html", data=data, q=q, label=label)
+
+
+@app.route("/accounts-json")
+def accounts_json():
+    """Paginated/searchable list of dataset accounts (used by the CLI)."""
+    return jsonify(query_accounts(
+        q=request.args.get("q", ""),
+        label=request.args.get("label", "all"),
+        page=request.args.get("page", 1),
+        per_page=request.args.get("per_page", 50),
+    ))
+
+
+@app.route("/lookup-json")
+def lookup_json():
+    """Look up a screen name in the bundled dataset (used by the standalone CLI).
+
+    Returns the model's verdict plus the dataset's ground-truth label when the
+    account is found, or {"found": false} so the client can fall back to manual
+    entry.
+    """
+    name = request.args.get("name", "").strip().lstrip("@").lower()
+    if not name:
+        return jsonify({"error": "Missing 'name' parameter"}), 400
+
+    if accounts_df.empty:
+        return jsonify({"found": False, "screen_name": name})
+
+    match = accounts_df[accounts_df["screen_name_lower"] == name]
+    if match.empty:
+        return jsonify({"found": False, "screen_name": name})
+
+    account = match.iloc[0].to_dict()
+    result = predict(account)
+    result["true_label"]   = int(account.get("true_label", -1))
+    result["input_source"] = "dataset"
+    result["found"]        = True
+    result["top_signals"]  = [list(s) for s in result["top_signals"]]
+    return jsonify(result)
+
+
 @app.route("/predict-json", methods=["POST"])
 def predict_json():
     """JSON endpoint used by the Chrome extension."""
-    from flask import jsonify
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data received"}), 400
